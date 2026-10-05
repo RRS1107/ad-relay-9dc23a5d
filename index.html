@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>カート投入リレー</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<style>
+  /* デジタル庁デザインシステム(DADS)のトークン */
+  :root {
+    --blue-900: #0017c1; --blue-1000: #00118f; --blue-1100: #000071; --blue-700: #264af4;
+    --bg: #f2f2f2; --card: #ffffff;
+    --text: #1a1a1a; --text-sub: #4d4d4d; --muted: #767676;
+    --border: #d9d9d9; --input-border: #767676;
+    --error: #ce0000; --focus: #ffc700;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    font-size: 16px; line-height: 1.7;
+    padding-inline: 16px; padding-block: 24px;
+  }
+  main {
+    max-width: 480px; margin: 0 auto; background: var(--card);
+    border: 1px solid var(--border); border-radius: 12px; padding: 24px 20px;
+    display: grid; gap: 20px;
+  }
+  h1 { margin: 0; font-size: 20px; font-weight: 700; text-wrap: balance; }
+  .label { font-size: 14px; color: var(--text-sub); margin: 0 0 4px; }
+  .name { margin: 0; font-weight: 500; word-break: break-all; }
+  .pid { margin: 0; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
+  label { display: block; font-size: 14px; color: var(--text-sub); margin-bottom: 4px; }
+  select {
+    width: 100%; height: 48px; font: inherit; color: var(--text); background: var(--card);
+    border: 1px solid var(--input-border); border-radius: 8px; padding: 0 12px;
+  }
+  .btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 56px; border: 0; border-radius: 8px;
+    background: var(--blue-900); color: #fff; font: inherit; font-size: 18px; font-weight: 700;
+    cursor: pointer; text-decoration: none;
+  }
+  .btn:hover { background: var(--blue-1000); }
+  .btn:active { background: var(--blue-1100); }
+  .btn[disabled] { background: var(--muted); cursor: not-allowed; }
+  .sub-link { color: var(--blue-700); font-size: 15px; justify-self: start; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .note { margin: 0; font-size: 13px; color: var(--text-sub); }
+  .error { margin: 0; color: var(--error); font-weight: 700; }
+</style>
+</head>
+<body>
+<main>
+  <div>
+    <p class="label">アメニティドリーム</p>
+    <h1>カートに入れる</h1>
+  </div>
+
+  <div>
+    <p class="label">商品</p>
+    <p class="name" id="name">（商品名なし）</p>
+    <p class="pid" id="pid-text"></p>
+  </div>
+
+  <p class="error" id="error" hidden>商品IDがありません。通知のリンクから開いてください。</p>
+
+  <!-- 送信先と項目名はスクリプトで商品IDから組み立てる。押すのは必ず本人。 -->
+  <form id="cart-form" method="post">
+    <input type="hidden" id="f-add" value="t">
+    <input type="hidden" name="cart_operation_page" value="product">
+    <div style="display:grid; gap:16px;">
+      <div>
+        <label for="qty">数量</label>
+        <select id="qty">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </div>
+      <button class="btn" type="submit" id="submit">カートに入れる</button>
+    </div>
+  </form>
+
+  <a class="sub-link" id="product-link" href="https://www.amenitydream.com/">商品ページを開く</a>
+
+  <p class="note">ボタンを押すと、アメニティドリームの商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザでアメニティドリームにログインしておいてください。</p>
+</main>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var pid = (params.get("p") || "").replace(/\D/g, "");
+  var qty = parseInt(params.get("q") || "1", 10);
+  var name = params.get("n") || "";
+
+  var form = document.getElementById("cart-form");
+  var submit = document.getElementById("submit");
+
+  if (!pid) {
+    document.getElementById("error").hidden = false;
+    submit.disabled = true;
+    return;
+  }
+
+  // スマホは /phone/ 側に直接送る（PC用URLに送るとスマホ版へリダイレクトされ、POSTの中身が消えるため）
+  var isPhone = /iPhone|iPod|Android.*Mobile|Mobile/i.test(navigator.userAgent);
+  var base = "https://www.amenitydream.com" + (isPhone ? "/phone" : "");
+  form.action = base + "/product/" + pid;
+  document.getElementById("product-link").href = base + "/product/" + pid;
+
+  document.getElementById("f-add").name = "cart_add_" + pid;
+  var sel = document.getElementById("qty");
+  sel.name = "cart_addquantity_" + pid;
+  if (qty >= 1 && qty <= 4) sel.value = String(qty);
+
+  if (name) document.getElementById("name").textContent = name;
+  document.getElementById("pid-text").textContent = "商品ID " + pid;
+  document.title = "カートに入れる " + pid;
+
+  form.addEventListener("submit", function () {
+    submit.disabled = true;
+    submit.textContent = "送信中…";
+  });
+  // 「戻る」で戻ってきた時にボタンが押せないまま残らないようにする
+  window.addEventListener("pageshow", function () {
+    submit.disabled = false;
+    submit.textContent = "カートに入れる";
+  });
+})();
+</script>
+</body>
+</html>
