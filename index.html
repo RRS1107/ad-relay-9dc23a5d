@@ -57,7 +57,7 @@
 <body>
 <main>
   <div>
-    <p class="label">アメニティドリーム</p>
+    <p class="label" id="site-name">アメニティドリーム</p>
     <h1>カートに入れる</h1>
   </div>
 
@@ -92,7 +92,7 @@
   <a class="sub-link" id="product-link" href="https://www.amenitydream.com/">商品ページを開く</a>
 
   <p class="note">混雑して「アクセスが集中しております」が出たら、<strong>画面を「戻る」でスワイプするだけで次の挑戦</strong>になります（戻るたびに1回だけ送ります）。</p>
-  <p class="note">ボタンを押すと、アメニティドリームの商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザでアメニティドリームにログインしておいてください。</p>
+  <p class="note" id="site-note">ボタンを押すと、アメニティドリームの商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザでアメニティドリームにログインしておいてください。</p>
 </main>
 
 <script>
@@ -111,9 +111,20 @@
     return;
   }
 
-  // スマホは /phone/ 側に直接送る（PC用URLに送るとスマホ版へリダイレクトされ、POSTの中身が消えるため）
+  // 送り先のサイト（s=c でカードラボ。どちらも同じ通販システムでフォームの形式が同じ）
+  var SITES = {
+    a: { name: "アメニティドリーム", host: "https://www.amenitydream.com", phonePath: "/phone" },
+    c: { name: "カードラボ", host: "https://www.c-labo-online.jp", phonePath: "" }
+  };
+  var site = SITES[params.get("s")] || SITES.a;
+  document.getElementById("site-name").textContent = site.name;
+  document.getElementById("site-note").textContent =
+    "ボタンを押すと、" + site.name + "の商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザで" + site.name + "にログインしておいてください。";
+
+  // アメニティドリームのスマホは /phone/ 側に直接送る（PC用URLに送るとスマホ版へリダイレクトされ、POSTの中身が消えるため）。
+  // カードラボはスマホもPCも同じURL。
   var isPhone = /iPhone|iPod|Android.*Mobile|Mobile/i.test(navigator.userAgent);
-  var base = "https://www.amenitydream.com" + (isPhone ? "/phone" : "");
+  var base = site.host + (isPhone ? site.phonePath : "");
   form.action = base + "/product/" + pid;
   document.getElementById("product-link").href = base + "/product/" + pid;
 
@@ -131,7 +142,7 @@
   // ⚠️連打はしない: 1回送るごとに本人の操作（リンクを開く／戻る）が必要。挑戦回数はこのタブの中だけで数える。
   var auto = document.getElementById("auto");
   var count = document.getElementById("count");
-  var KEY = "tries_" + pid;
+  var KEY = "tries_" + (params.get("s") || "a") + "_" + pid;
   function getTries() { try { return parseInt(sessionStorage.getItem(KEY) || "0", 10); } catch (e) { return 0; } }
   function setTries(n) { try { sessionStorage.setItem(KEY, String(n)); } catch (e) {} }
   try { auto.checked = localStorage.getItem("relay_auto") !== "0"; } catch (e) {}
