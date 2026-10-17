@@ -49,6 +49,9 @@
   :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
   .note { margin: 0; font-size: 13px; color: var(--text-sub); }
   .error { margin: 0; color: var(--error); font-weight: 700; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); }
+  .toggle input { width: 22px; height: 22px; }
+  .count { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--text-sub); }
 </style>
 </head>
 <body>
@@ -81,11 +84,14 @@
         </select>
       </div>
       <button class="btn" type="submit" id="submit">カートに入れる</button>
+      <label class="toggle" for="auto"><input type="checkbox" id="auto" checked>開いた時・「戻る」で戻った時に自動で1回送る</label>
+      <p class="count" id="count"></p>
     </div>
   </form>
 
   <a class="sub-link" id="product-link" href="https://www.amenitydream.com/">商品ページを開く</a>
 
+  <p class="note">混雑して「アクセスが集中しております」が出たら、<strong>画面を「戻る」でスワイプするだけで次の挑戦</strong>になります（戻るたびに1回だけ送ります）。</p>
   <p class="note">ボタンを押すと、アメニティドリームの商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザでアメニティドリームにログインしておいてください。</p>
 </main>
 
@@ -120,14 +126,42 @@
   document.getElementById("pid-text").textContent = "商品ID " + pid;
   document.title = "カートに入れる " + pid;
 
+  // ---- 1回の挑戦を「戻るスワイプ1回」にする ----
+  // 開いた時と「戻る」で戻った時(pageshow)に、カート投入を1回だけ送る。
+  // ⚠️連打はしない: 1回送るごとに本人の操作（リンクを開く／戻る）が必要。挑戦回数はこのタブの中だけで数える。
+  var auto = document.getElementById("auto");
+  var count = document.getElementById("count");
+  var KEY = "tries_" + pid;
+  function getTries() { try { return parseInt(sessionStorage.getItem(KEY) || "0", 10); } catch (e) { return 0; } }
+  function setTries(n) { try { sessionStorage.setItem(KEY, String(n)); } catch (e) {} }
+  try { auto.checked = localStorage.getItem("relay_auto") !== "0"; } catch (e) {}
+  auto.addEventListener("change", function () {
+    try { localStorage.setItem("relay_auto", auto.checked ? "1" : "0"); } catch (e) {}
+  });
+
+  function sendOnce() {
+    var n = getTries() + 1;
+    setTries(n);
+    count.textContent = "挑戦 " + n + " 回目を送信中…";
+    submit.disabled = true;
+    submit.textContent = "送信中…";
+    // ⚠️ボタンの id="submit" が form.submit を上書きするので、フォーム本来の submit を直接呼ぶ
+    //   （自分で呼ぶ submit は submit イベントを発生させない）
+    HTMLFormElement.prototype.submit.call(form);
+  }
   form.addEventListener("submit", function () {
+    setTries(getTries() + 1);
     submit.disabled = true;
     submit.textContent = "送信中…";
   });
-  // 「戻る」で戻ってきた時にボタンが押せないまま残らないようにする
   window.addEventListener("pageshow", function () {
+    // 「戻る」で戻ってきた時にボタンが押せないまま残らないようにする
     submit.disabled = false;
     submit.textContent = "カートに入れる";
+    var n = getTries();
+    count.textContent = n ? "これまでの挑戦 " + n + " 回" : "";
+    // 少し待ってから送る（戻った直後に自動送信をオフにする余裕を残す）
+    if (auto.checked) setTimeout(function () { if (auto.checked) sendOnce(); }, 600);
   });
 })();
 </script>
