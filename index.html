@@ -69,6 +69,12 @@
 
   <p class="error" id="error" hidden>商品IDがありません。通知のリンクから開いてください。</p>
 
+  <!-- iPhoneでChrome以外（Discordのアプリ内ブラウザ等）で開かれた時だけ表示 -->
+  <div id="open-chrome" hidden style="gap:8px;">
+    <a class="btn" id="open-chrome-link" href="#">Chromeで開く</a>
+    <p class="note">このブラウザはChromeではないため、自動では送りません（ログインしているブラウザで送るため）。上のボタンでChromeに切り替えてください。</p>
+  </div>
+
   <!-- 送信先と項目名はスクリプトで商品IDから組み立てる。押すのは必ず本人。 -->
   <form id="cart-form" method="post">
     <input type="hidden" id="f-add" value="t">
@@ -165,14 +171,28 @@
     submit.disabled = true;
     submit.textContent = "送信中…";
   });
+  // ---- iPhoneでChrome以外で開かれた時は「Chromeで開く」を出し、自動送信はしない ----
+  // Discordのリンクはアプリ内ブラウザ（中身はSafari系）で開くことがあり、普段使いのChromeとはログイン状態が別。
+  // そこで送ると、ログインしていないカートに1回むだに送ってしまう。googlechromes:// でChromeに渡す。
+  var isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  var isChrome = /CriOS/.test(navigator.userAgent);
+  var notChrome = isIOS && !isChrome;
+  if (notChrome) {
+    var box = document.getElementById("open-chrome");
+    box.hidden = false;
+    box.style.display = "grid";
+    document.getElementById("open-chrome-link").href =
+      location.href.replace(/^https:/, "googlechromes:").replace(/^http:/, "googlechrome:");
+  }
+
   window.addEventListener("pageshow", function () {
     // 「戻る」で戻ってきた時にボタンが押せないまま残らないようにする
     submit.disabled = false;
     submit.textContent = "カートに入れる";
     var n = getTries();
     count.textContent = n ? "これまでの挑戦 " + n + " 回" : "";
-    // 少し待ってから送る（戻った直後に自動送信をオフにする余裕を残す）
-    if (auto.checked) setTimeout(function () { if (auto.checked) sendOnce(); }, 600);
+    // 少し待ってから送る（戻った直後に自動送信をオフにする余裕を残す）。Chrome以外のiPhoneでは送らない
+    if (auto.checked && !notChrome) setTimeout(function () { if (auto.checked) sendOnce(); }, 600);
   });
 })();
 </script>
