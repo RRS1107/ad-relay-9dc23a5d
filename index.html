@@ -192,7 +192,8 @@
     var n = getTries();
     count.textContent = n ? "これまでの挑戦 " + n + " 回" : "";
     // 少し待ってから送る（戻った直後に自動送信をオフにする余裕を残す）。Chrome以外のiPhoneでは送らない
-    if (auto.checked && !notChrome) setTimeout(function () { if (auto.checked) sendOnce(); }, 600);
+    // 2026-10-21 600ms→200ms（1回の挑戦を速くするため。混雑時は1回ごとの抽選なので回数が効く）
+    if (auto.checked && !notChrome) setTimeout(function () { if (auto.checked) sendOnce(); }, 200);
   });
 })();
 </script>
