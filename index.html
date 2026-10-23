@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>カート投入リレー</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap">
+<!-- ⚠️Webフォント（Google Fonts）は読まない。読むとページの読み込み完了が遅れ、送信が約0.6秒遅れていた（2026-10-23計測）。
+     送信先へは先に接続を始めておく（暗号化の手続きぶん早く送れる） -->
+<link rel="preconnect" href="https://www.amenitydream.com">
+<link rel="preconnect" href="https://www.c-labo-online.jp">
 <style>
   /* デジタル庁デザインシステム(DADS)のトークン */
   :root {
@@ -18,7 +21,7 @@
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--text);
-    font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
     font-size: 16px; line-height: 1.7;
     padding-inline: 16px; padding-block: 24px;
   }
@@ -220,7 +223,11 @@
       location.href.replace(/^https:/, "googlechromes:").replace(/^http:/, "googlechrome:");
   }
 
-  window.addEventListener("pageshow", function () {
+  // 開いた時と「戻る」で戻った時に1回だけ動く。
+  // ⚠️ページの読み込み完了（load / 通常の pageshow）を待たない。スクリプトはページの最後にあるので、
+  //   ここに来た時点でボタン等はそろっている。「戻る」でブラウザが記憶から復元した時だけ pageshow(persisted) で動く。
+  //   （読み込み完了を待つ旧版は、開いてから送信まで約0.9秒かかっていた。2026-10-23）
+  function onShow() {
     // 「戻る」で戻ってきた時にボタンが押せないまま残らないようにする
     submit.disabled = false;
     submit.textContent = "カートに入れる";
@@ -234,13 +241,15 @@
       //    カートを開けなかったため追加）
       setTimeout(function () {
         if (auto.checked && inCartMode()) { count.textContent = "カートページを開いています…"; location.href = cartUrl; }
-      }, 200);
+      }, 30);
       return;
     }
-    // 少し待ってから送る（戻った直後に自動送信をオフにする余裕を残す）。Chrome以外のiPhoneでは送らない
-    // 2026-10-21 600ms→200ms（1回の挑戦を速くするため。混雑時は1回ごとの抽選なので回数が効く）
-    setTimeout(function () { if (auto.checked && !inCartMode()) sendOnce(); }, 200);
-  });
+    // 2026-10-21 600ms→200ms、2026-10-23 200ms→30ms（1回の挑戦を速くするため。混雑時は1回ごとの抽選なので回数が効く。
+    //   「すでにカートに入っています」が出た後は中継ページに戻らず通知から開き直す運用にしたので、止める猶予は不要）
+    setTimeout(function () { if (auto.checked && !inCartMode()) sendOnce(); }, 30);
+  }
+  window.addEventListener("pageshow", function (e) { if (e.persisted) onShow(); });
+  onShow();
 })();
 </script>
 </body>
