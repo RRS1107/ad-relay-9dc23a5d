@@ -52,6 +52,11 @@
   .toggle { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--text); }
   .toggle input { width: 22px; height: 22px; }
   .count { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--text-sub); }
+  .btn-secondary { background: var(--card); color: var(--blue-900); border: 2px solid var(--blue-900); }
+  .btn-secondary:hover { background: #e8f1fe; }
+  .btn-secondary:active { background: #d9e6ff; }
+  .mode { margin: 0; padding: 12px 16px; border-radius: 8px; background: #e8f1fe; color: var(--blue-1100); font-weight: 700; }
+  .link-btn { background: none; border: 0; padding: 0; font: inherit; font-size: 15px; color: var(--blue-700); text-decoration: underline; cursor: pointer; justify-self: start; }
 </style>
 </head>
 <body>
@@ -65,6 +70,13 @@
     <p class="label">商品</p>
     <p class="name" id="name">（商品名なし）</p>
     <p class="pid" id="pid-text"></p>
+  </div>
+
+  <!-- カートに入った後は「カートを開く」に切り替える。押すとこのタブは「戻る」でカートページを開くモードになる -->
+  <div style="display:grid; gap:8px;">
+    <a class="btn btn-secondary" id="open-cart" href="#">🧺 カートを開く</a>
+    <p class="mode" id="mode-cart" hidden>カートを開くモードです。「戻る」で戻るたびにカートページを開きます（カートには入れ直しません）。</p>
+    <button class="link-btn" type="button" id="back-to-add" hidden>「カートに入れる」に戻す</button>
   </div>
 
   <p class="error" id="error" hidden>商品IDがありません。通知のリンクから開いてください。</p>
@@ -90,7 +102,7 @@
         </select>
       </div>
       <button class="btn" type="submit" id="submit">カートに入れる</button>
-      <label class="toggle" for="auto"><input type="checkbox" id="auto" checked>開いた時・「戻る」で戻った時に自動で1回送る</label>
+      <label class="toggle" for="auto"><input type="checkbox" id="auto" checked>開いた時・「戻る」で戻った時に自動で1回送る（カートを開くモードではカートを開く）</label>
       <p class="count" id="count"></p>
     </div>
   </form>
@@ -98,6 +110,7 @@
   <a class="sub-link" id="product-link" href="https://www.amenitydream.com/">商品ページを開く</a>
 
   <p class="note">混雑して「アクセスが集中しております」が出たら、<strong>画面を「戻る」でスワイプするだけで次の挑戦</strong>になります（戻るたびに1回だけ送ります）。</p>
+  <p class="note">「すでに商品はカートに入っています」が出たら、<strong>カートに入っています</strong>。戻って上の「🧺 カートを開く」を押してください。以後は「戻る」でカートページを開く挑戦になります。</p>
   <p class="note" id="site-note">ボタンを押すと、アメニティドリームの商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザでアメニティドリームにログインしておいてください。</p>
 </main>
 
@@ -133,6 +146,9 @@
   var base = site.host + (isPhone ? site.phonePath : "");
   form.action = base + "/product/" + pid;
   document.getElementById("product-link").href = base + "/product/" + pid;
+  var cartUrl = base + "/cart";
+  var openCart = document.getElementById("open-cart");
+  openCart.href = cartUrl;
 
   document.getElementById("f-add").name = "cart_add_" + pid;
   var sel = document.getElementById("qty");
@@ -149,6 +165,25 @@
   var auto = document.getElementById("auto");
   var count = document.getElementById("count");
   var KEY = "tries_" + (params.get("s") || "a") + "_" + pid;
+  // 「カートを開くモード」かどうか（このタブの中だけで覚える。通知から新しく開いたタブは「カートに入れる」から始まる）
+  var MODE_KEY = "mode_" + (params.get("s") || "a") + "_" + pid;
+  function inCartMode() { try { return sessionStorage.getItem(MODE_KEY) === "cart"; } catch (e) { return false; } }
+  function setCartMode(on) { try { on ? sessionStorage.setItem(MODE_KEY, "cart") : sessionStorage.removeItem(MODE_KEY); } catch (e) {} }
+  function showMode() {
+    var on = inCartMode();
+    document.getElementById("mode-cart").hidden = !on;
+    document.getElementById("back-to-add").hidden = !on;
+    openCart.className = on ? "btn" : "btn btn-secondary";
+    submit.className = on ? "btn btn-secondary" : "btn";
+  }
+  openCart.addEventListener("click", function () {
+    // 押した時点でモードを切り替える。リンク自体は通常どおりカートページへ移動する
+    setCartMode(true);
+  });
+  document.getElementById("back-to-add").addEventListener("click", function () {
+    setCartMode(false);
+    showMode();
+  });
   function getTries() { try { return parseInt(sessionStorage.getItem(KEY) || "0", 10); } catch (e) { return 0; } }
   function setTries(n) { try { sessionStorage.setItem(KEY, String(n)); } catch (e) {} }
   try { auto.checked = localStorage.getItem("relay_auto") !== "0"; } catch (e) {}
@@ -191,9 +226,20 @@
     submit.textContent = "カートに入れる";
     var n = getTries();
     count.textContent = n ? "これまでの挑戦 " + n + " 回" : "";
+    showMode();
+    if (!auto.checked || notChrome) return;
+    if (inCartMode()) {
+      // カートを開くモード: カートには入れ直さず、カートページを開く挑戦を1回だけする
+      //   （2026-10-23 カートに入った後も「戻る」のたびに送り直し「すでに商品はカートに入っています」が出続けて
+      //    カートを開けなかったため追加）
+      setTimeout(function () {
+        if (auto.checked && inCartMode()) { count.textContent = "カートページを開いています…"; location.href = cartUrl; }
+      }, 200);
+      return;
+    }
     // 少し待ってから送る（戻った直後に自動送信をオフにする余裕を残す）。Chrome以外のiPhoneでは送らない
     // 2026-10-21 600ms→200ms（1回の挑戦を速くするため。混雑時は1回ごとの抽選なので回数が効く）
-    if (auto.checked && !notChrome) setTimeout(function () { if (auto.checked) sendOnce(); }, 200);
+    setTimeout(function () { if (auto.checked && !inCartMode()) sendOnce(); }, 200);
   });
 })();
 </script>
