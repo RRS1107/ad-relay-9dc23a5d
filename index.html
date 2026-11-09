@@ -202,8 +202,12 @@
     // 2026-10-21 600ms→200ms、2026-10-23 200ms→30ms（1回の挑戦を速くするため。混雑時は1回ごとの抽選なので回数が効く）
     if (auto.checked && !notChrome) setTimeout(function () { if (auto.checked) sendOnce(); }, 30);
   }
+  // ⚠️ただし送信はページの読み込み完了（load）後にする。完了前にスクリプトで送ると、ブラウザが中継ページの履歴を
+  //   送信先で上書きし（履歴の置き換え）、「戻る」で中継ページに戻れず挑戦が1回で終わっていた（2026-11-10 判明）。
+  //   Webフォントを読まなくしたので、load はすぐ来る。
   window.addEventListener("pageshow", function (e) { if (e.persisted) onShow(); });
-  onShow();
+  if (document.readyState === "complete") onShow();
+  else window.addEventListener("load", function () { setTimeout(onShow, 0); });
 })();
 </script>
 </body>
