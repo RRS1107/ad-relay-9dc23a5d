@@ -82,8 +82,37 @@
   <form id="cart-form" method="post">
     <input type="hidden" id="f-add" value="t">
     <input type="hidden" name="cart_operation_page" value="product">
+    <!-- 手続きモード（m=checkout）の送信項目。お届け先画面（/phone/cart/shipping）の「次へ」と同じ内容。
+         2026-11-10 ユーザーが保存した実画面で確認。最後の「購入する」はreCAPTCHA付きで、必ず本人がサイトで押す。 -->
+    <div id="checkout-hidden" hidden>
+      <input type="hidden" data-co name="shippingCount" value="1">
+      <input type="hidden" data-co name="cart_payment_display" value="t">
+      <input type="hidden" data-co name="delivery[1][shipping_list]" value="99999999">
+      <input type="hidden" data-co name="delivery[1][shippingdate_ymd]" value="">
+      <input type="hidden" data-co name="delivery[1][shippingdate_time]" value="">
+      <input type="hidden" data-co name="customer_comment" value="">
+      <input type="hidden" data-co name="go-next" value="次へ">
+    </div>
     <div style="display:grid; gap:16px;">
-      <div>
+      <div id="checkout-fields" hidden style="gap:16px;">
+        <div>
+          <label for="pay">支払い方法</label>
+          <select id="pay" data-co name="pay_procedure">
+            <option value="1">銀行振込</option>
+            <option value="2">郵便振替</option>
+            <option value="10000006">PayPal</option>
+          </select>
+        </div>
+        <div>
+          <label for="ship">配送方法</label>
+          <select id="ship" data-co name="delivery[1][shipping_method]">
+            <option value="7">クロネコヤマト宅急便</option>
+            <option value="6">ゆうパック</option>
+          </select>
+        </div>
+        <p class="note">お届け先は会員登録の住所、日時指定はなしで送ります。</p>
+      </div>
+      <div id="qty-box">
         <label for="qty">数量</label>
         <select id="qty">
           <option value="1">1</option>
@@ -101,6 +130,7 @@
   <a class="sub-link" id="product-link" href="https://www.amenitydream.com/">商品ページを開く</a>
 
   <p class="note">混雑して「アクセスが集中しております」が出たら、<strong>画面を「戻る」でスワイプするだけで次の挑戦</strong>になります（戻るたびに1回だけ送ります）。</p>
+  <p class="note" id="checkout-note" hidden>「ご購入内容の最終確認」画面が出たら成功です。内容を確かめて<strong>「購入する」はご自身で押してください</strong>（ここからは送りません）。</p>
   <p class="note" id="site-note">ボタンを押すと、アメニティドリームの商品ページの「カートに入れる」と同じ操作をします。事前にこのブラウザでアメニティドリームにログインしておいてください。</p>
 </main>
 
@@ -137,6 +167,36 @@
   form.action = base + "/product/" + pid;
   document.getElementById("product-link").href = base + "/product/" + pid;
 
+  // ---- 手続きモード（m=checkout、アメニティのみ）: カートに入った後、お届け先画面の「次へ」を送り「最終確認」画面へ進む ----
+  // ⚠️送るのは「次へ」まで。最後の「購入する」はreCAPTCHA付きで、本人がサイト上で押す。
+  // スマホ版の項目で確認したので、PCで開いても /phone/ 側へ送る（PCのChromeでもスマホ版は開ける）。
+  var checkout = params.get("m") === "checkout" && site === SITES.a;
+  var coEls = document.querySelectorAll("[data-co]");
+  if (checkout) {
+    form.action = site.host + site.phonePath + "/cart/shipping";
+    document.querySelector("h1").textContent = "購入手続きを進める";
+    document.getElementById("checkout-hidden").hidden = false;
+    var cf = document.getElementById("checkout-fields");
+    cf.hidden = false; cf.style.display = "grid";
+    document.getElementById("qty-box").hidden = true;
+    document.getElementById("f-add").disabled = true;           // カート投入の項目は送らない
+    document.getElementById("qty").disabled = true;
+    form.querySelector('[name="cart_operation_page"]').disabled = true;
+    document.getElementById("checkout-note").hidden = false;
+    document.getElementById("site-note").textContent =
+      "カートに商品が入った後に使います。お届け先画面の「次へ」と同じ操作をし、「ご購入内容の最終確認」画面へ進みます。";
+    // 支払い・配送の選択はこの端末に記憶する（URLには載せない）
+    ["pay", "ship"].forEach(function (id) {
+      var s = document.getElementById(id);
+      try { var v = localStorage.getItem("relay_" + id); if (v) s.value = v; } catch (e) {}
+      s.addEventListener("change", function () { try { localStorage.setItem("relay_" + id, s.value); } catch (e) {} });
+    });
+  } else {
+    for (var i = 0; i < coEls.length; i++) coEls[i].disabled = true;  // 手続きの項目はカート投入では送らない
+  }
+  var SUBMIT_LABEL = checkout ? "手続きを進める" : "カートに入れる";
+  submit.textContent = SUBMIT_LABEL;
+
   document.getElementById("f-add").name = "cart_add_" + pid;
   var sel = document.getElementById("qty");
   sel.name = "cart_addquantity_" + pid;
@@ -144,14 +204,14 @@
 
   if (name) document.getElementById("name").textContent = name;
   document.getElementById("pid-text").textContent = "商品ID " + pid;
-  document.title = "カートに入れる " + pid;
+  document.title = SUBMIT_LABEL + " " + pid;
 
   // ---- 1回の挑戦を「戻るスワイプ1回」にする ----
   // 開いた時と「戻る」で戻った時(pageshow)に、カート投入を1回だけ送る。
   // ⚠️連打はしない: 1回送るごとに本人の操作（リンクを開く／戻る）が必要。挑戦回数はこのタブの中だけで数える。
   var auto = document.getElementById("auto");
   var count = document.getElementById("count");
-  var KEY = "tries_" + (params.get("s") || "a") + "_" + pid;
+  var KEY = "tries_" + (params.get("s") || "a") + "_" + (checkout ? "co_" : "") + pid;
   function getTries() { try { return parseInt(sessionStorage.getItem(KEY) || "0", 10); } catch (e) { return 0; } }
   function setTries(n) { try { sessionStorage.setItem(KEY, String(n)); } catch (e) {} }
   try { auto.checked = localStorage.getItem("relay_auto") !== "0"; } catch (e) {}
@@ -195,7 +255,7 @@
   function onShow() {
     // 「戻る」で戻ってきた時にボタンが押せないまま残らないようにする
     submit.disabled = false;
-    submit.textContent = "カートに入れる";
+    submit.textContent = SUBMIT_LABEL;
     var n = getTries();
     count.textContent = n ? "これまでの挑戦 " + n + " 回" : "";
     // 少し待ってから送る。Chrome以外のiPhoneでは送らない
